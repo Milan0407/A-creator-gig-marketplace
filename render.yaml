@@ -13,3 +13,9 @@ services:
         sync: false
       - key: CLIENT_URL
         sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openrouter/free
+      - key: OPENROUTER_TIMEOUT_MS
+        value: "30000"
