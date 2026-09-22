@@ -45,6 +45,7 @@ export const getGigs = async (req, res) => {
     const {
       search,
       category,
+      creatorName,
       minPrice,
       maxPrice,
       sort = "newest",
@@ -85,6 +86,10 @@ export const getGigs = async (req, res) => {
       filter.category = category;
     }
 
+    if (creatorName) {
+      filter.creatorName = creatorName.trim();
+    }
+
     // Price filter
     if (minPrice || maxPrice) {
       filter.price = {};
@@ -99,8 +104,8 @@ export const getGigs = async (req, res) => {
     }
 
     // Pagination
-    const currentPage = Math.max(Number(page), 1);
-    const itemsPerPage = Math.min(Number(limit), 50);
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const itemsPerPage = Math.min(Math.max(Number(limit) || 12, 1), 50);
     const skip = (currentPage - 1) * itemsPerPage;
 
     // Sorting

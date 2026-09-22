@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: creatorgig-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: MONGODB_URI
+        sync: false
+      - key: CLIENT_URL
+        sync: false

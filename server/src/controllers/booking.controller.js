@@ -99,6 +99,10 @@ export const acceptBooking = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+    }
+
     const booking = await Booking.findById(id);
 
     if (!booking) {
@@ -116,10 +120,43 @@ export const acceptBooking = async (req, res) => {
       });
     }
 
-    // Accept this booking
-    booking.status = "ACCEPTED";
+    // Atomically reserve the gig before accepting a request. This prevents two
+    // different pending requests for the same gig from being accepted together.
+    const reservedGig = await Gig.findOneAndUpdate(
+      { _id: booking.gigId, status: "ACTIVE" },
+      {
+        $set: { status: "PAUSED" },
+        $inc: { bookingsCount: 1 },
+      },
+      { new: true }
+    );
 
-    await booking.save();
+    if (!reservedGig) {
+      return res.status(409).json({
+        success: false,
+        message: "This gig has already been reserved by another accepted booking.",
+      });
+    }
+
+    const acceptedBooking = await Booking.findOneAndUpdate(
+      { _id: id, status: "PENDING" },
+      { $set: { status: "ACCEPTED" } },
+      { new: true }
+    );
+
+    // A concurrent decline could have changed this request after it was read.
+    // Release the gig reservation so another pending request can still be reviewed.
+    if (!acceptedBooking) {
+      await Gig.findByIdAndUpdate(booking.gigId, {
+        $set: { status: "ACTIVE" },
+        $inc: { bookingsCount: -1 },
+      });
+
+      return res.status(409).json({
+        success: false,
+        message: "This booking was updated before it could be accepted.",
+      });
+    }
 
     // Decline other pending bookings for the same gig
     await Booking.updateMany(
@@ -137,17 +174,10 @@ export const acceptBooking = async (req, res) => {
       }
     );
 
-    // Increment booking count
-    await Gig.findByIdAndUpdate(booking.gigId, {
-      $inc: {
-        bookingsCount: 1,
-      },
-    });
-
     res.status(200).json({
       success: true,
       message: "Booking accepted successfully",
-      data: booking,
+      data: acceptedBooking,
     });
   } catch (error) {
     console.error("Accept booking error:", error);
@@ -163,6 +193,10 @@ export const declineBooking = async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+    }
 
     const booking = await Booking.findById(id);
 
